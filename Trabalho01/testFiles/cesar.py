@@ -42,10 +42,10 @@ if PARAMETER_LIST[0] == '-c':
             letter_index = CHAR_LIST.index(letter)
             new_letter_index = letter_index + KEY
             # Checar se não vai passar do limite
-            if(new_letter_index > len(CHAR_LIST)):
+            if(new_letter_index >= len(CHAR_LIST)):
                 # Checamos o que resta
                 new_letter_index = new_letter_index - len(CHAR_LIST)
-            # Por removermos voltas múltiplas, a new_letter_index vai cair dentro da nossa lista    
+            # Por removermos voltas múltiplas, a new_letter_index vai cair dentro da nossa lista 
             OUTPUT_TEXT.append(CHAR_LIST[new_letter_index])
         else:
             # Character incorreto deixamos onde estava            
