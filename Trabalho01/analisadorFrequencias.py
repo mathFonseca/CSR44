@@ -78,7 +78,7 @@ if('-p' in PARAMETER_LIST):
     PRINT_ENABLE = 1
 
 
-if( len(PARAMETER_LIST) > 1):
+if( len(PARAMETER_LIST) >= 1):
     possible_key = analisador(INPUT_TEXT,printResults=1)
 else:
     possible_key = analisador(INPUT_TEXT)
