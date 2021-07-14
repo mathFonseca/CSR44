@@ -73,6 +73,7 @@ def generateOTP(username):
     time_now = datetime.datetime.now()
 
     # Add time to the current seed
+    # It's already salted
     user_seed = getSeed(username)
 
     if(user_seed == -1):
@@ -93,6 +94,11 @@ def generateOTP(username):
     print("They last for 1 minute.")
     print("OTPs: \n" + otp_1[:8] + "\n" + otp_2[:8] + "\n" + otp_3[:8] + "\n" + otp_4[:8] + "\n" + otp_5[:8] + "\n")
             
+def updateAppDatabase(username, userSeed):
+    # Send to app database the user and the userSeed
+    with open('appDatabase.csv', 'a+', newline='') as appDatabase:
+        newRow = csv.writer(appDatabase, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        newRow.writerow([username, userSeed])
 def main():
 
     print(" Welcome to OTP Generator")
@@ -108,16 +114,23 @@ def main():
         # SignUp Step
         usernameData = input("Username: ")
         userLocalPassword = input("Local Password: ")
-        userSeed = input(" Master Password: ")
+        userSeed = input("Master Password: ")
 
         if(checkUsername(usernameData)):
+            # Calculate Unique Salt for the user:
+            userSalt = str(usernameData)[::-1]
+
+            # Add Salt to Passwords:
+            userLocalPassword += userSalt
+            userSeed += userSalt
+
             # Hashes both passwords for Sign Up
             userLocalPassword = hashlib.sha256(userLocalPassword.encode()).hexdigest()
             userSeed = hashlib.sha256(userSeed.encode()).hexdigest()
 
+            # Update our database and app database with new user.
             signUp(usernameData, userSeed, userLocalPassword)
-
-            # TODO: Notify Application of new user register
+            updateAppDatabase(usernameData, userSeed)
 
             print("Sign Up OK! Welcome!")
         else:
@@ -128,7 +141,14 @@ def main():
         usernameData = input(" Username: ")
         userLocalPassword = input(" Local Password: ")
 
-        # TODO: Hash password for Sign In
+        # Calculate Unique Salt for the user:
+        userSalt = str(usernameData)[::-1]
+
+        # Add Salt to Passwords:
+        userLocalPassword += userSalt
+
+        # Hash the local password
+        userLocalPassword = hashlib.sha256(userLocalPassword.encode()).hexdigest()
 
         if (signIn(usernameData, userLocalPassword)):
             # Successful signIn
