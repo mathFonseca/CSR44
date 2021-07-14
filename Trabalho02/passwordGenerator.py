@@ -17,7 +17,9 @@
 # Bibliotecas
 
 import csv
-
+import datetime
+import sys
+import hashlib
 
 def signUp(username, seed, localPassword):
     # Regiser user on database. Seed and localPassword needs to be
@@ -45,22 +47,108 @@ def signIn(username, localPassword):
                     return False
         # Didn't find a correct username
         return False
+
+def getSeed(username):
+    # Given a username, get his seed on database
+    with open('tokenDatabase.csv','r',newline='') as tokenDatabase:
+        dataLoad = csv.reader(tokenDatabase, delimiter=';', quotechar='"')
+        for rowContent in dataLoad:
+            if(rowContent[0] == username):
+                userSeed = rowContent[2]
+                return userSeed
+        return -1
+
+def checkUsername(username):
+    # Given a username, check if we have the username on database
+    with open('tokenDatabase.csv','r',newline='') as tokenDatabase:
+        dataLoad = csv.reader(tokenDatabase, delimiter=';', quotechar='"')
+        for rowContent in dataLoad:
+            if(rowContent[0] == username):
+                return False
+        return True
+
+def generateOTP(username):
+    # OTP Elements:
+    # 1 - Hour on the system
+    time_now = datetime.datetime.now()
+
+    # Add time to the current seed
+    user_seed = getSeed(username)
+
+    if(user_seed == -1):
+        print("Bad Seed!")
+        sys.exit()
+
+    user_seed = user_seed + str(time_now.year) + str(time_now.month) + str(time_now.day) + str(time_now.hour) + str(time_now.minute)
+
+    # Create 5 OTP
+    otp_1 = hashlib.sha256(user_seed.encode()).hexdigest()
+    otp_2 = hashlib.sha256(otp_1.encode()).hexdigest()
+    otp_3 = hashlib.sha256(otp_2.encode()).hexdigest()
+    otp_4 = hashlib.sha256(otp_3.encode()).hexdigest()
+    otp_5 = hashlib.sha256(otp_4.encode()).hexdigest()
+
+    # Print everything for the user
+    print("The follwing OTP are valid from " + str(time_now.year) + "-" + str(time_now.month) + "-" + str(time_now.day) + " " + str(time_now.hour) + ":" + str(time_now.minute))
+    print("They last for 1 minute.")
+    print("OTPs: \n" + otp_1[:8] + "\n" + otp_2[:8] + "\n" + otp_3[:8] + "\n" + otp_4[:8] + "\n" + otp_5[:8] + "\n")
             
 def main():
 
-    # SignUp Step
-    usernameData = input("Username: ")
-    userLocalPassword = input("Local Password: ")
+    print(" Welcome to OTP Generator")
+    print(" Please choose:")
+    print(" 1 - Create User")
+    print(" 2 - Generate OTP")
+    print(" 0 - Leave")
+    menu = input()
 
-    signUp(usernameData, 'seedHashed', userLocalPassword)
+    if(menu == '0'):
+        sys.exit()
+    elif(menu == '1'):
+        # SignUp Step
+        usernameData = input("Username: ")
+        userLocalPassword = input("Local Password: ")
+        userSeed = input(" Master Password: ")
 
-    # SignIn Step
-    if (signIn(usernameData, userLocalPassword)):
-        # Successful signIn
-        print("Good!")
+        if(checkUsername(usernameData)):
+            # Hashes both passwords for Sign Up
+            userLocalPassword = hashlib.sha256(userLocalPassword.encode()).hexdigest()
+            userSeed = hashlib.sha256(userSeed.encode()).hexdigest()
+
+            signUp(usernameData, userSeed, userLocalPassword)
+
+            # TODO: Notify Application of new user register
+
+            print("Sign Up OK! Welcome!")
+        else:
+            print("Username already taken, try again!")
+            sys.exit()
+    elif(menu == '2'):
+        # SignIn Step
+        usernameData = input(" Username: ")
+        userLocalPassword = input(" Local Password: ")
+
+        # TODO: Hash password for Sign In
+
+        if (signIn(usernameData, userLocalPassword)):
+            # Successful signIn
+            print(" Good! Welcome!")
+            print(" Please choose:")
+            print(" 1 - Generate OTP")
+            print(" 0 - Exit")
+
+            menu = input()
+            if(menu == '1'):
+                generateOTP(usernameData)
+            else:
+                sys.exit()
+        else:
+            # Not so successful sign in
+            print(" Uh, Bad! The credentials don't match, Try again")
+            sys.exit()
     else:
-        # Not so successful sign in
-        print("Bad!")
+        print("Wrong input")
+        sys.exit()
 
 if __name__ == "__main__":
     main()
