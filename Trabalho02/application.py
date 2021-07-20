@@ -77,6 +77,8 @@ def verifyToken(tokenList, userToken):
     with open('invalidTokens') as tokens:
         invalidTokens = tokens.readlines()
 
+    invalidTokens = [x.strip() for x in invalidTokens]
+
     for items in invalidTokens:
         if(items == userToken):
             print("Token Already Used")
@@ -85,7 +87,12 @@ def verifyToken(tokenList, userToken):
     # If token are not in invalid list, check if inside user token List
     for token in tokenList:
         if(token == userToken):
+            # Update the invalid List
+            updateUsedTokenList(tokenList[tokenList.index(token):])
             return True
+    
+    # Update the invalid List
+    updateUsedTokenList(tokenList[tokenList.index(token):])
     return False
 
 def main():
@@ -94,9 +101,7 @@ def main():
     otpPassword = input("OTP Password: ")
 
     # Verify if user exist on app data or "server"
-    if(getUser(usernameData)):
-        print("User Found!")
-        
+    if(getUser(usernameData)):        
         # Generate tokens
         tokenList = generateOTP(usernameData)
 
@@ -104,11 +109,9 @@ def main():
         if(verifyToken(tokenList, otpPassword)):
             # Token is valid, it's a verified user.
             print("Token is valid, congratulations!")
-
-            # Update the invalid List
-            updateUsedTokenList(tokenList)
         else:
             # Token is not valid
+            print("Token is not valid!")
             sys.exit()
 
 
