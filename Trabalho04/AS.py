@@ -14,11 +14,17 @@
 
 # Bibliotecas
 import sys
-import csv
-import hashlib
-import time
+import string
+import random
+import pickle
 import pandas as pd
+import socket
 from pyDes import *
+
+# Variaveis
+
+ipHOST = '127.0.0.1'
+PORT = 65330
 
 def printMenu(menuType):
     print(menuType)
@@ -35,26 +41,51 @@ def decryptDES(dataEncrypt, key):
     data = dataPrep.decrypt(dataEncrypt)
     return data
 
+def getUserPassword(username):    
+    data = pd.read_csv("ASDatabase.csv", index_col="username")
+    return (data.loc[username][0])
+
+def getTGSKey(ID_Service):
+    data = pd.read_csv("TGSDatabase.csv", index_col="serviceName")
+    return (data.loc[ID_Service][0])
+
 def main():
-    # TODO: Connect to socket and listen for messages
-    # TODO: Break Message 1 from Client.py and decrypt
-    # TODO: Build Message 2 from TGS.py and send back
 
-    while(not leaveFlag):
-        printMenu(0)
-        menuOption = input()
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as soc:
+        soc.bind((ipHOST,PORT))
 
-        # Account Creation. Log automatically if success
-        if(menuOption == 'z' or menuOption == 'Z'):
-            printMenu(1)
-        # Log In. Moves to Service Interaction if success
-        elif(menuOption == 'x' or menuOption == 'X'):
-            printMenu(2)
-        # Leave the software.
-        elif(menuOption == 'c' or menuOption == 'C'):
-            leaveFlag = True
-            print("Thanks, have a great time!")
-            sys.exit()     
+        # Address the ipHost and Port to the socket, and keeps listening
+        while True:
+            soc.listen()
+            # If hear something, accept the connection
+            conn, addr = soc.accept()
+
+            with conn:
+                print("Connected in ",addr)
+                # Once connected, reads the information
+                connectionStatus = True
+                while connectionStatus:
+                    data = conn.recv(1024)
+                    if(not data):
+                        connectionStatus = False
+                    else:
+                        # Data received is M1, from client.py
+                        M1 = pickle.loads(data)
+                        kc = getUserPassword(M1[0])[:8]
+                        ID_S = decryptDES(M1[1][0], kc).decode()
+                        T_R = decryptDES(M1[1][1],kc).decode()
+                        N1 = decryptDES(M1[1][2],kc).decode()
+
+                        # Builds M2{K_c_tgs + N_1}Kc + T_c_tgs]
+                        # Onde T_c_tgs = {ID_C + T_R + K_c_tgs}K_tgs
+
+                        kc_tgs = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+                        ktgs = getTGSKey(ID_S)
+                        M2 = [[encryptDES(kc_tgs,kc),encryptDES(N1,kc)],
+                        [encryptDES(M1[0],ktgs),encryptDES(T_R,ktgs),encryptDES(kc_tgs,ktgs) ]]
+
+                        M2data = pickle.dumps(M2)
+                    conn.sendall(M2data)
 
 if __name__ == "__main__":
     main()

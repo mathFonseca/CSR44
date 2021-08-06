@@ -13,11 +13,20 @@
 # ------------------------------
 
 # Bibliotecas
+
 import sys
 import csv
+import socket
+import pickle
+import secrets
 import hashlib
 import time
 import pandas as pd
+from pyDes import *
+
+# Variaveis
+ipHOST = '127.0.0.1'
+ASPORT = 65330
 
 # Print Section for User Interaction
 def printMenu(menuType = 0, username = 'Default'):
@@ -46,7 +55,7 @@ def printMenu(menuType = 0, username = 'Default'):
 
     if(menuType == 4):
         print("------------------------------")
-        print("====== Welcome! " + str(username) + ", please select options below: ======")
+        print("====== Welcome! " + str(username) + " , please select options below: ======")
         print(" Z - Service 1")
         print(" X - Service 2")
         print(" C - Leave")
@@ -75,20 +84,8 @@ def login():
 
     return resultFlag
 
-# TODO: Implement
-def signIn(username, password):
-    columnOrder= ["username","password"]
-    userData = pd.read_csv("userDatabase.csv", usecols=columnOrder)
-    print(userData)
-
-# Register new user on database
-def signUp(username, password):
-    with open('userDatabase.csv', 'a+', newline='') as userDatabase:
-        newRow = csv.writer(userDatabase, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        newRow.writerow([username, password])
-    return
-
 # Verify if username is available
+# Returns True if it's available, False if it's already in use
 def verifyUsername(username):
     columnOrder = ["username","password"]
     data = pd.read_csv("userDatabase.csv", usecols=columnOrder)
@@ -97,6 +94,24 @@ def verifyUsername(username):
             return False
     return True
 
+# Verify user credentials
+def signIn(username, password):
+    userData = pd.read_csv("userDatabase.csv", index_col="username")
+
+    if(not verifyUsername(username)):
+        if(userData.loc[username][0] != password):
+            return False
+        else:
+            return True
+    return False
+
+# Register new user on database
+def signUp(username, password):
+    with open('userDatabase.csv', 'a+', newline='') as userDatabase:
+        newRow = csv.writer(userDatabase, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        newRow.writerow([username, password])
+    return
+
 # Send userdata to AS database
 def send2AS(username,password):
     with open('ASDatabase.csv', 'a+', newline='') as ASDatabase:
@@ -104,8 +119,19 @@ def send2AS(username,password):
         newRow.writerow([username, password])
     return
 
+# Encrypt data with key using DES
+def encryptDES(data, key):
+    dataPrep = des(key, CBC, "\0\0\0\0\0\0\0\0", pad=None, padmode=PAD_PKCS5)
+    dataEncrypt = dataPrep.encrypt(data)
+    return dataEncrypt
+
+# Decrypt dataEncrypt with key using DES
+def decryptDES(dataEncrypt, key):
+    dataPrep = des(key, CBC, "\0\0\0\0\0\0\0\0", pad=None, padmode=PAD_PKCS5)
+    data = dataPrep.decrypt(dataEncrypt)
+    return data
+
 def main():
-    # TODO: Validate servers
 
     # Step 1 - User interaction
     leaveFlag = False
@@ -162,8 +188,53 @@ def main():
 
         # Option 1
         if(menuOption == 'z' or menuOption == 'Z'):
-            # TODO: Message to server.
-            print("Service 1")
+            print("Service 1 - Folder Access")
+            # Build M1 for As.py
+            # M1 = [ID_C + {ID_S + T_R + N1}Kc]
+            # ID_C = Identificador do cliente.
+            # ID_S = Identificador do serviço pretendido.
+
+            userTime = input("How long do you want to access? (Minutes): ")
+            try:
+                ticketTime = int(userTime)
+            except ValueError:
+                print("Invalid Time")
+                sys.exit()
+
+            # T_R = Tempo solicitado pelo Cliente para ter acesso ao serviço.
+            # N1 = Número aleatório 1.
+            # Kc = Chave do cliente (Somente o cliente e o AS conhecem).
+            
+            kc = password[:8]
+            ID_C = username
+            ID_S = 'AX_01'
+            T_R = userTime
+            N1 = str(secrets.randbelow(55555))
+            print("kc " + str(kc))
+            print("ID_C " + str(ID_C))
+            print("ID_S " + str(ID_S))
+            print("T_R " + str(T_R))
+            print("N1 " + str(N1))
+            M1 = [ID_C, [encryptDES(ID_S,kc), encryptDES(T_R, kc), encryptDES(N1,kc) ]]
+
+            # Send M1 to AS.py
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as soc:
+                soc.connect((ipHOST,ASPORT))
+                M1data = pickle.dumps(M1)
+                soc.sendall(M1data)
+                print("M1 was sent to AS server;")
+                
+                # Wait for M2 from AS.py
+                M2 = soc.recv(1024)
+                M2 = pickle.loads(M2)
+
+            # Verify if N1 is correct
+            if(decryptDES(M2[0][1],kc).decode() != N1):
+                
+                # Wrong random number
+                print("Wrond Number, Wrond Ticket m'buddy")
+                sys.exit()
+
         elif(menuOption == 'x' or menuOption == 'X'):
             # TODO: Message to server.
             print("Service 2")
