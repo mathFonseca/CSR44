@@ -27,6 +27,7 @@ from pyDes import *
 # Variaveis
 ipHOST = '127.0.0.1'
 ASPORT = 65330
+TGSPORT = 65230
 
 # Print Section for User Interaction
 def printMenu(menuType = 0, username = 'Default'):
@@ -210,11 +211,11 @@ def main():
             ID_S = 'AX_01'
             T_R = userTime
             N1 = str(secrets.randbelow(55555))
-            print("kc " + str(kc))
-            print("ID_C " + str(ID_C))
-            print("ID_S " + str(ID_S))
-            print("T_R " + str(T_R))
-            print("N1 " + str(N1))
+            # print("kc " + str(kc))
+            # print("ID_C " + str(ID_C))
+            # print("ID_S " + str(ID_S))
+            # print("T_R " + str(T_R))
+            # print("N1 " + str(N1))
             M1 = [ID_C, [encryptDES(ID_S,kc), encryptDES(T_R, kc), encryptDES(N1,kc) ]]
 
             # Send M1 to AS.py
@@ -232,12 +233,36 @@ def main():
             if(decryptDES(M2[0][1],kc).decode() != N1):
                 
                 # Wrong random number
-                print("Wrond Number, Wrond Ticket m'buddy")
+                print("Wrong Number, Wrong Ticket m'buddy")
                 sys.exit()
 
+            # Build M3. Get's kc_tgs from M2 and build new N2.
+            kc_tgs = decryptDES(M2[0][0],kc).decode()
+            N2 = str(secrets.randbelow(55555))
+            M3 = [[encryptDES(ID_C,kc_tgs),encryptDES(ID_S,kc_tgs),encryptDES(T_R,kc_tgs),encryptDES(N2,kc_tgs)],[M2[1][0],M2[1][1],M2[1][2]]]
+
+            # Send M3 to TGS.py
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as soc:
+                soc.connect((ipHOST,TGSPORT))
+                M3data = pickle.dumps(M3)
+                soc.sendall(M3data)
+                print("M3 was sent to TGS server;")
+                
+                # Wait for M4 from TGS.py
+                M4 = soc.recv(1024)
+                M4 = pickle.loads(M4)
+            
+            print(decryptDES(M4[0][0],kc_tgs).decode())
+            print(decryptDES(M4[0][1],kc_tgs).decode())
+            print(decryptDES(M4[0][2],kc_tgs).decode())
+
+            # TODO: Verify if N2 is correct;
+            # TODO: Connect in Service Loop
+            # TODO: Build M5
+            # TODO: Wait for M6.
         elif(menuOption == 'x' or menuOption == 'X'):
-            # TODO: Message to server.
-            print("Service 2")
+            print("Service 2 is not available right now.")
+            sys.exit()
         elif(menuOption == 'c' or menuOption == 'x'):
             printMenu(6)
             sys.exit()

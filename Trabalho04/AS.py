@@ -13,7 +13,6 @@
 # ------------------------------
 
 # Bibliotecas
-import sys
 import string
 import random
 import pickle
@@ -25,6 +24,7 @@ from pyDes import *
 
 ipHOST = '127.0.0.1'
 PORT = 65330
+KTGS = 'B7HA8172'
 
 def printMenu(menuType):
     print(menuType)
@@ -46,7 +46,7 @@ def getUserPassword(username):
     return (data.loc[username][0])
 
 def getTGSKey(ID_Service):
-    data = pd.read_csv("TGSDatabase.csv", index_col="serviceName")
+    data = pd.read_csv("ASTGSDatabase.csv", index_col="TGSName")
     return (data.loc[ID_Service][0])
 
 def main():
