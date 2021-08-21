@@ -28,6 +28,7 @@ from pyDes import *
 ipHOST = '127.0.0.1'
 ASPORT = 65330
 TGSPORT = 65230
+SPORT = 65130
 
 # Print Section for User Interaction
 def printMenu(menuType = 0, username = 'Default'):
@@ -233,9 +234,9 @@ def main():
             if(decryptDES(M2[0][1],kc).decode() != N1):
                 
                 # Wrong random number
-                print("Wrong Number, Wrong Ticket m'buddy")
+                print("Wrong Number, Wrong Ticket m'buddy (N1)")
                 sys.exit()
-
+            print(" M2 received; ")
             # Build M3. Get's kc_tgs from M2 and build new N2.
             kc_tgs = decryptDES(M2[0][0],kc).decode()
             N2 = str(secrets.randbelow(55555))
@@ -252,14 +253,76 @@ def main():
                 M4 = soc.recv(1024)
                 M4 = pickle.loads(M4)
             
-            print(decryptDES(M4[0][0],kc_tgs).decode())
-            print(decryptDES(M4[0][1],kc_tgs).decode())
-            print(decryptDES(M4[0][2],kc_tgs).decode())
+            # print(decryptDES(M4[0][0],kc_tgs).decode())
+            # print(decryptDES(M4[0][1],kc_tgs).decode())
+            # print(decryptDES(M4[0][2],kc_tgs).decode())
 
-            # TODO: Verify if N2 is correct;
-            # TODO: Connect in Service Loop
-            # TODO: Build M5
-            # TODO: Wait for M6.
+            # Verify if N2 is correct;
+            if(decryptDES(M4[0][2],kc_tgs).decode() != N2):
+
+                # Wrong random number
+                print("Wrong Number, Wrong Ticket m'buddy (N2)")
+                sys.exit()
+
+            print(" M4 received; ")
+            kcs = decryptDES(M4[0][0],kc_tgs).decode()
+            T_A = decryptDES(M4[0][1],kc_tgs).decode()
+            S_R = 'f'
+
+            print(" You have " + time.ctime(float(T_A)) + " remaining")
+
+            # This ticket will be generated at all options on this service
+            serviceUsage = True
+            serviceAnswer = -1
+            while serviceUsage:
+                # Build M5: [{ID_C + (T_A ou T_R) + S_R + N3}K_c_s + T_c_s]                          
+                N3 = str(secrets.randbelow(55555))
+                M5 = [[encryptDES(ID_C,kcs),encryptDES(T_A,kcs),encryptDES(S_R,kcs),encryptDES(N3,kcs)],[M4[1][0],M4[1][1],M4[1][2]]]
+
+                # Connect in Service Loop
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as soc:
+                    soc.connect((ipHOST,SPORT))
+                    M5data = pickle.dumps(M5)
+                    soc.sendall(M5data)
+                    print(S_R)
+                    print("M5 was sent to Services Server;")
+
+                    # Wait for M6.
+                    M6 = soc.recv(1024)
+                    M6 = pickle.loads(M6)
+
+                # Verify if N3 is correct;
+                if(decryptDES(M6[1],kcs).decode() != N3):
+
+                    # Wrong random number
+                    print("Wrong Number, Wrong Ticket m'buddy (N3)")
+                    serviceUsage = False
+                    sys.exit()
+
+                print(" M6 received; ")
+                serviceAnswer = decryptDES(M6[0],kcs).decode()
+                if(serviceAnswer == '000'):
+                    print("Service timeout - Ticket expired.")
+                    serviceUsage = False
+                    sys.exit()
+
+                if(serviceAnswer == '004'):
+                    print("Thank you for using our service")
+                    serviceUsage = False
+                    sys.exit()
+                else:
+                    print(serviceAnswer)
+                    S_R = input("__: ")
+
+                    if(S_R == 'z' or S_R == 'Z'):
+                        S_R = 'z'
+                    elif(S_R == 'x' or S_R == 'X'):
+                        S_R = 'x'
+                    elif(S_R == 'c' or S_R == 'C'):
+                        S_R = 'c'
+                    else:
+                        S_R = 'f'
+
         elif(menuOption == 'x' or menuOption == 'X'):
             print("Service 2 is not available right now.")
             sys.exit()

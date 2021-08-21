@@ -70,6 +70,7 @@ def main():
                         connectionStatus = False
                     else:
                         # Data received is M1, from client.py
+                        print(" M1 received; ")
                         M1 = pickle.loads(data)
                         kc = getUserPassword(M1[0])[:8]
                         ID_S = decryptDES(M1[1][0], kc).decode()
@@ -85,6 +86,7 @@ def main():
                         [encryptDES(M1[0],ktgs),encryptDES(T_R,ktgs),encryptDES(kc_tgs,ktgs) ]]
 
                         M2data = pickle.dumps(M2)
+                        print(" M2 sent; ")
                     conn.sendall(M2data)
 
 if __name__ == "__main__":

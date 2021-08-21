@@ -64,6 +64,7 @@ def main():
                     else:
                         # Data received is M3, from client.py
                         # [{ID_C + ID_S + T_R + N2 }K_c_tgs + T_c_tgs]
+                        print(" M3 Received; ")
                         M3 = pickle.loads(data)
                         ktgs = KTGS
                         kc_tgs = decryptDES(M3[1][2],ktgs).decode()
@@ -83,9 +84,9 @@ def main():
                         M4 = [[encryptDES(kcs,kc_tgs),encryptDES(str(T_A),kc_tgs),encryptDES(N2,kc_tgs)],[encryptDES(ID_C,ks),encryptDES(str(T_A),ks),encryptDES(kcs,ks)]]
 
                         M4data = pickle.dumps(M4)
+                        print(" M4 sent; ")
                     conn.sendall(M4data)
+                    
 
 if __name__ == "__main__":
-    main()
-
-
+     main()
