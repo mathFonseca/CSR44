@@ -1,34 +1,50 @@
-
-import pysyslogclient
+from socket import *
 import threading
 import hashlib
-from socket import *
+import pysyslogclient
+import csv
+import pandas as pd
 
-PORT = 8080
-SYSLOGIP = "192.168.100.242"
-SYSLOGPORT = 514
 class Server:
-
     CRLF = '\r\n'
     Socket = socket(AF_INET,SOCK_STREAM)
 
-    def __init__(self, socket):
-        try:
-            self.Socket = socket
-            self.sysLogClient = pysyslogclient.SyslogClientRFC5424("192.168.100.242", 514, proto="TCP")
-            threading.Thread(target=self.run, args=()).start()
-        
-        except error as e:
-            self.sysLogClient.log("Unable to create/re-use the socket. Error: " + e, severity=pysyslogclient.SEV_EMERGENCY)
-            self.sysLogClient.close()
-
-        print("Server is ready to listen")
+    def __init__ (self, socket):
+        self.Socket = socket
+        self.sysLogClient = pysyslogclient.SyslogClientRFC5424("192.168.100.242", 514, proto="TCP")
+        threading.Thread(target=self.run, args=()).start()
 
     def run(self):
         try:
             self.processRequest()
         except Exception as e:
             print(e)
+
+    def logIntegrity(self, ip, hash):
+        with open('integrity_verification.csv', 'a+', newline='') as database:
+            databasewriter = csv.writer(database, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            databasewriter.writerow([ip, hash])
+            return
+
+    def verifyIP(self, ip):
+        col_list = ["ip", "hash"]
+        df = pd.read_csv("integrity_verification.csv", usecols=col_list)
+        for row in df["ip"]:
+            if(ip == row):
+                return(True)
+        return(False)
+
+    def verifyIntegrity(self, ip, hash):
+        data = pd.read_csv("integrity_verification.csv", index_col="ip")
+        if(data.loc[ip][0] != hash):
+            return(False)
+        else:
+            return(True)
+
+    def updateIntegrity(self, ip, hash):
+        data = pd.read_csv("integrity_verification.csv")
+        data.loc[data["ip"]==ip, "hash"] = hash
+        data.to_csv("integrity_verification.csv", index=False)
 
     def processRequest(self):
         request = self.Socket.recv(1024)
@@ -114,6 +130,15 @@ class Server:
             else:
                 self.sysLogClient.log(proxy_socket.getsockname()[0] + " - " + server_socket_details[4][4][0] + " - " + "HTTP/1.1 200 OK", severity=pysyslogclient.SEV_INFO)
                 hash = hashlib.sha256(file).hexdigest()
+                if (self.verifyIP(server_socket_details[4][4][0]) == False):
+                    self.logIntegrity(server_socket_details[4][4][0], hash)
+                    self.sysLogClient.log("Integrity OK - " + server_socket_details[4][4][0] + " - " + hash, severity=pysyslogclient.SEV_INFO)
+                else:
+                    if (self.verifyIntegrity(server_socket_details[4][4][0], hash)):
+                        self.sysLogClient.log("Integrity OK - " + server_socket_details[4][4][0] + " - " + hash, severity=pysyslogclient.SEV_INFO)
+                    else:
+                        self.updateIntegrity(server_socket_details[4][4][0], hash)
+                        self.sysLogClient.log("Integrity CHANGED! - " + server_socket_details[4][4][0] + " - " + hash, severity=pysyslogclient.SEV_WARNING)
                 self.sysLogClient.close()
                 self.Socket.send(web_server_response_append)
             proxy_socket.close()
@@ -124,37 +149,15 @@ class Server:
             self.Socket.send(str.encode('HTTP/1.1 404 not found' + self.CRLF + self.CRLF))
         self.Socket.close()
 
-
-def generateHASH():
-    fh = open("proxy.py").read()
-    hash_ = hashlib.md5(fh.encode("utf-8")).hexdigest()[:16]
-    f = open("hash.txt",'w+')
-    f.write(hash_)
-    f.close()
-
-def checkIntegrity():
-    fh = open("hash.txt").read()
-    th = open("proxy.py").read()
-    hash_ = hashlib.md5(th.encode("utf-8")).hexdigest()[:16]
-    if(fh == hash_):
-        return True
-    return False
-
 def main():
-    generateHASH()
-    if(checkIntegrity()):
-        serverPort = 8080
-        serverSocket = socket(AF_INET,SOCK_STREAM)
-        serverSocket.bind(('',serverPort))
-        serverSocket.listen(1)
-        print("The server is ready to listen")
-        while(True):
-            connectionSocket, addr = serverSocket.accept()
-            request = Server(connectionSocket)
-    else:
-        print("APPLICATION INTEGRITY COMPROMISED!")
+    serverPort = 8080
+    serverSocket = socket(AF_INET,SOCK_STREAM)
+    serverSocket.bind(('',serverPort))
+    serverSocket.listen(1)
+    print("The server is ready to listen")
+    while(True):
+        connectionSocket, addr = serverSocket.accept()
+        request = Server(connectionSocket)
 
 if __name__ == "__main__":
     main()
-
-
